@@ -17,6 +17,7 @@ class IntegrationCandidateService:
     OPTIONAL_TABLES = [
         "candidateprofile",
         "formattedcv",
+        "cvfile",
         "formattedcveducation",
         "formattedcvworkexperience",
         "formattedcvcertification",
@@ -44,6 +45,9 @@ class IntegrationCandidateService:
         formatted_cv_by_candidate = self._group_by_key(
             datasets["formattedcv"], "candidate", selector=self._select_formatted_cv
         )
+        cv_file_by_candidate = self._group_by_key(
+            datasets["cvfile"], "candidate", selector=self._select_cv_file
+        )
         education_by_formatted_cv = self._group_by_key(datasets["formattedcveducation"], "formatted_cv")
         experience_by_formatted_cv = self._group_by_key(
             datasets["formattedcvworkexperience"], "formatted_cv"
@@ -67,6 +71,7 @@ class IntegrationCandidateService:
                     candidate_payload=candidate_payload,
                     candidate_profile=profile_by_candidate.get(str(candidate_payload["id"])),
                     formatted_cv=formatted_cv_by_candidate.get(str(candidate_payload["id"])),
+                    cv_file=cv_file_by_candidate.get(str(candidate_payload["id"])),
                     education_by_formatted_cv=education_by_formatted_cv,
                     experience_by_formatted_cv=experience_by_formatted_cv,
                     certification_by_formatted_cv=certification_by_formatted_cv,
@@ -132,11 +137,25 @@ class IntegrationCandidateService:
             reverse=True,
         )[0]
 
+    def _select_cv_file(self, rows: list[dict]) -> dict:
+        prioritized_rows = [row for row in rows if self._to_str(row.get("s3_url"))]
+        source_rows = prioritized_rows or rows
+        return sorted(
+            source_rows,
+            key=lambda row: (
+                self._to_bool(row.get("is_active")),
+                self._safe_sort_value(row.get("uploaded_at")),
+                self._safe_sort_value(row.get("id")),
+            ),
+            reverse=True,
+        )[0]
+
     def _build_integrated_payload(
         self,
         candidate_payload: dict,
         candidate_profile: dict | None,
         formatted_cv: dict | None,
+        cv_file: dict | None,
         education_by_formatted_cv: dict,
         experience_by_formatted_cv: dict,
         certification_by_formatted_cv: dict,
@@ -179,6 +198,7 @@ class IntegrationCandidateService:
             "candidate": candidate_payload,
             "candidate_profile": candidate_profile or {},
             "formatted_cv": formatted_cv or {},
+            "cv_file": cv_file or {},
             "education": education_rows,
             "work_experience": experience_rows,
             "certifications": certification_rows,
@@ -216,6 +236,7 @@ class IntegrationCandidateService:
                     formatted_cv.get("address") if formatted_cv else "",
                 )
             ),
+            "cv_s3_url": self._to_str(cv_file.get("s3_url") if cv_file else ""),
             "zone": self._to_str(
                 self._first_non_empty(
                     candidate_payload.get("zone"),

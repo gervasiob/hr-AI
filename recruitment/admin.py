@@ -9,13 +9,16 @@ from recruitment.models import (
     CandidateExperience,
     CandidateSkill,
     IntegrationCandidate,
+    IntegrationCandidateLLMRun,
     JobOpening,
     JobSkillRequirement,
+    LLMAllowedSkill,
     Organization,
     RemoteTableRecord,
     RemoteTableSync,
     Skill,
 )
+from recruitment.services.llm_skill_extractor import IntegrationCandidateLLMSkillExtractor
 
 
 class CandidateEducationInline(admin.TabularInline):
@@ -36,8 +39,8 @@ class CandidateSkillInline(admin.TabularInline):
 
 @admin.register(Candidate)
 class CandidateAdmin(admin.ModelAdmin):
-    list_display = ("full_name", "email", "location", "current_position", "availability")
-    search_fields = ("first_name", "last_name", "email", "current_position")
+    list_display = ("idIntegration", "full_name", "email", "cv_s3_url", "location", "current_position", "availability")
+    search_fields = ("first_name", "last_name", "email", "current_position", "idIntegration", "cv_s3_url")
     list_filter = ("availability", "location")
     inlines = [CandidateEducationInline, CandidateExperienceInline, CandidateSkillInline]
 
@@ -117,6 +120,7 @@ class IntegrationCandidateAdmin(admin.ModelAdmin):
         "idIntegration",
         "full_name",
         "email",
+        "cv_s3_url",
         "primary_profile",
         "sub_profile",
         "seniority_level",
@@ -133,3 +137,34 @@ class IntegrationCandidateAdmin(admin.ModelAdmin):
         "primary_profile",
         "sub_profile",
     )
+    actions = ["run_llm_skill_extraction"]
+
+    @admin.action(description="Ejecutar extraccion LLM de skills")
+    def run_llm_skill_extraction(self, request, queryset):
+        extractor = IntegrationCandidateLLMSkillExtractor()
+        success_count = 0
+        failed_count = 0
+        for candidate in queryset:
+            run = extractor.extract_candidate_skills(candidate)
+            if run.status == IntegrationCandidateLLMRun.Status.SUCCESS:
+                success_count += 1
+            else:
+                failed_count += 1
+        self.message_user(
+            request,
+            f"Extracciones completadas. Exitosas: {success_count}. Fallidas: {failed_count}.",
+        )
+
+
+@admin.register(LLMAllowedSkill)
+class LLMAllowedSkillAdmin(admin.ModelAdmin):
+    list_display = ("code", "name", "category", "is_active")
+    list_filter = ("category", "is_active")
+    search_fields = ("code", "name", "description")
+
+
+@admin.register(IntegrationCandidateLLMRun)
+class IntegrationCandidateLLMRunAdmin(admin.ModelAdmin):
+    list_display = ("candidate", "status", "provider", "model_name", "prompt_version", "executed_at")
+    list_filter = ("status", "provider", "model_name", "prompt_version")
+    search_fields = ("candidate__full_name", "candidate__email", "error_message")

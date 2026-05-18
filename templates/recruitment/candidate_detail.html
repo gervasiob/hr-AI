@@ -8,6 +8,14 @@
     <p><strong>Email:</strong> {{ candidate.email }}</p>
     <p><strong>Ubicacion:</strong> {{ candidate.location|default:"-" }}</p>
     <p><strong>Puesto actual:</strong> {{ candidate.current_position|default:"-" }}</p>
+    <p>
+        <strong>CV:</strong>
+        {% if candidate.cv_s3_url %}
+        <a class="btn btn-secondary" href="{{ candidate.cv_s3_url }}" target="_blank" rel="noopener noreferrer">Ver CV</a>
+        {% else %}
+        -
+        {% endif %}
+    </p>
     <p><strong>Resumen:</strong> {{ candidate.summary|default:"Sin resumen." }}</p>
 
     <form method="post" action="{% url 'recruitment:candidate-classify' candidate.pk %}">
@@ -19,11 +27,40 @@
 <section class="grid" style="margin-top: 1rem;">
     <div class="card">
         <h3>Skills registradas</h3>
-        {% for item in skills %}
-            <span class="badge">{{ item.skill.name }} | {{ item.skill.get_category_display }}</span>
+        <p><strong>Tecnicas:</strong></p>
+        {% for item in candidate.techSkills %}
+            <span class="badge">{{ item.name|default:item.code }}{% if item.level %} | {{ item.level }}{% endif %}</span>
         {% empty %}
-            <p>No hay skills guardadas.</p>
+            <p>No hay skills tecnicas guardadas.</p>
         {% endfor %}
+
+        <p style="margin-top: 1rem;"><strong>Soft:</strong></p>
+        {% for item in candidate.softSkills %}
+            <span class="badge">{{ item.name|default:item.code }}{% if item.level %} | {{ item.level }}{% endif %}</span>
+        {% empty %}
+            <p>No hay skills soft guardadas.</p>
+        {% endfor %}
+
+        <p style="margin-top: 1rem;"><strong>Educacion:</strong></p>
+        {% for item in candidate.educationSkills %}
+            <span class="badge">{{ item.name|default:item.code }}{% if item.level %} | {{ item.level }}{% endif %}</span>
+        {% empty %}
+            <p>No hay skills de educacion guardadas.</p>
+        {% endfor %}
+
+        <p style="margin-top: 1rem;"><strong>Idiomas:</strong></p>
+        {% for item in candidate.langSkills %}
+            <span class="badge">{{ item.name|default:item.code }}{% if item.level %} | {{ item.level }}{% endif %}</span>
+        {% empty %}
+            <p>No hay skills de idiomas guardadas.</p>
+        {% endfor %}
+
+        {% if skills %}
+            <p style="margin-top: 1rem;"><strong>Skills legacy:</strong></p>
+            {% for item in skills %}
+                <span class="badge">{{ item.skill.name }} | {{ item.skill.get_category_display }}</span>
+            {% endfor %}
+        {% endif %}
     </div>
 
     <div class="card">
@@ -39,7 +76,11 @@
             </p>
             <p>{{ item.evidence_text }}</p>
         {% empty %}
+            {% if candidate.techSkills or candidate.softSkills or candidate.educationSkills or candidate.langSkills %}
+            <p>Las skills ya fueron guardadas en el candidato local.</p>
+            {% else %}
             <p>No hay resultados IA para este candidato.</p>
+            {% endif %}
         {% endfor %}
     </div>
 </section>

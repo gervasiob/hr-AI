@@ -12,6 +12,7 @@
                 <th>Email</th>
                 <th>Ubicacion</th>
                 <th>Puesto actual</th>
+                <th>CV</th>
             </tr>
         </thead>
         <tbody>
@@ -25,10 +26,17 @@
                     <td>{{ candidate.email }}</td>
                     <td>{{ candidate.location|default:"-" }}</td>
                     <td>{{ candidate.current_position|default:"-" }}</td>
+                    <td>
+                        {% if candidate.cv_s3_url %}
+                        <a class="btn btn-secondary" href="{{ candidate.cv_s3_url }}" target="_blank" rel="noopener noreferrer">Ver CV</a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="4">No hay candidatos cargados.</td>
+                    <td colspan="5">No hay candidatos cargados.</td>
                 </tr>
             {% endfor %}
         </tbody>

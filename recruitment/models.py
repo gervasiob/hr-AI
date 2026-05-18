@@ -65,9 +65,11 @@ class Candidate(TimeStampedModel):
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=50, blank=True)
     document_id = models.CharField(max_length=50, blank=True)
+    idIntegration = models.PositiveBigIntegerField(null=True, blank=True, unique=True, db_index=True)
     location = models.CharField(max_length=120, blank=True)
     linkedin_url = models.URLField(blank=True)
     portfolio_url = models.URLField(blank=True)
+    cv_s3_url = models.URLField(blank=True)
     summary = models.TextField(blank=True)
     resume_text = models.TextField(blank=True)
     desired_salary = models.DecimalField(
@@ -83,6 +85,10 @@ class Candidate(TimeStampedModel):
         default=Availability.NEGOTIABLE,
     )
     current_position = models.CharField(max_length=150, blank=True)
+    techSkills = models.JSONField(default=list, blank=True)
+    softSkills = models.JSONField(default=list, blank=True)
+    educationSkills = models.JSONField(default=list, blank=True)
+    langSkills = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -474,6 +480,7 @@ class IntegrationCandidate(TimeStampedModel):
     age = models.PositiveIntegerField(null=True, blank=True)
 
     address = models.CharField(max_length=255, blank=True)
+    cv_s3_url = models.URLField(blank=True)
     zone = models.CharField(max_length=120, blank=True)
     province = models.CharField(max_length=120, blank=True)
     country = models.CharField(max_length=120, blank=True)
@@ -519,3 +526,63 @@ class IntegrationCandidate(TimeStampedModel):
 
     def __str__(self):
         return self.full_name or f"IntegrationCandidate #{self.idIntegration}"
+
+    def build_llm_skill_payload(self):
+        return {
+            "education": self.education_json or [],
+            "work_experience": self.work_experience_json or [],
+            "languages": self.languages_json or [],
+            "summary": self.summary or "",
+            "technical_skills_text": self.technical_skills_text or "",
+            "profile_description": self.profile_description or "",
+        }
+
+
+class LLMAllowedSkill(TimeStampedModel):
+    class Category(models.TextChoices):
+        TECHNICAL = "technical", "Tecnica"
+        SOFT = "soft", "Soft"
+        EDUCATION = "education", "Educacion"
+        LANGUAGE = "language", "Idiomas"
+
+    code = models.CharField(max_length=120, unique=True)
+    name = models.CharField(max_length=255)
+    category = models.CharField(max_length=20, choices=Category.choices)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["category", "name"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class IntegrationCandidateLLMRun(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pendiente"
+        SUCCESS = "success", "Exitosa"
+        FAILED = "failed", "Fallida"
+
+    candidate = models.ForeignKey(
+        IntegrationCandidate,
+        on_delete=models.CASCADE,
+        related_name="llm_runs",
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    provider = models.CharField(max_length=50, default="openai")
+    model_name = models.CharField(max_length=100, blank=True)
+    prompt_version = models.CharField(max_length=50, default="skills-v1")
+    request_payload = models.JSONField(default=dict, blank=True)
+    request_prompt = models.TextField(blank=True)
+    allowed_skills_snapshot = models.JSONField(default=dict, blank=True)
+    raw_response = models.TextField(blank=True)
+    normalized_response = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    executed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"LLM Run {self.candidate.idIntegration} - {self.created_at:%Y-%m-%d %H:%M}"

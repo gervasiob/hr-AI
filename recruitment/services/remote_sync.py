@@ -18,6 +18,10 @@ class RemoteTableSyncService:
     PAGINATED_API_TABLES = {
         "candidate": "candidates/",
     }
+    JSON_API_TABLES = {
+        "cvfile": "cv-files/",
+    }
+    BULK_BATCH_SIZE = 1000
 
     def list_available_tables(self) -> list[str]:
         payload = self._get_json("tables/")
@@ -43,9 +47,15 @@ class RemoteTableSyncService:
             created_count = 0
             updated_count = 0
             max_remote_id = tracker.last_remote_id
-            existing_ids = set(tracker.records.values_list("remote_id", flat=True))
+            existing_records = {
+                record.remote_id: record
+                for record in tracker.records.all().only("id", "remote_id", "payload")
+            }
+            to_create = []
+            to_update = []
 
             with transaction.atomic():
+                current_time = timezone.now()
                 for row in rows:
                     remote_id = self._extract_remote_id(row)
                     if remote_id is None:
@@ -54,26 +64,46 @@ class RemoteTableSyncService:
                     if remote_id > max_remote_id:
                         max_remote_id = remote_id
 
-                    if remote_id <= tracker.last_remote_id and remote_id in existing_ids:
+                    existing_record = existing_records.get(remote_id)
+                    if remote_id <= tracker.last_remote_id and existing_record and existing_record.payload == row:
                         continue
 
-                    _, created = RemoteTableRecord.objects.update_or_create(
-                        table=tracker,
-                        remote_id=remote_id,
-                        defaults={"payload": row},
-                    )
-
-                    if created:
+                    if existing_record is None:
+                        to_create.append(
+                            RemoteTableRecord(
+                                table=tracker,
+                                remote_id=remote_id,
+                                payload=row,
+                                created_at=current_time,
+                                updated_at=current_time,
+                            )
+                        )
                         created_count += 1
                     else:
+                        existing_record.payload = row
+                        existing_record.updated_at = current_time
+                        to_update.append(existing_record)
                         updated_count += 1
 
+                if to_create:
+                    RemoteTableRecord.objects.bulk_create(
+                        to_create,
+                        batch_size=self.BULK_BATCH_SIZE,
+                    )
+
+                if to_update:
+                    RemoteTableRecord.objects.bulk_update(
+                        to_update,
+                        ["payload", "updated_at"],
+                        batch_size=self.BULK_BATCH_SIZE,
+                    )
+
                 tracker.last_remote_id = max_remote_id
-                tracker.records_count = tracker.records.count()
+                tracker.records_count = len(existing_records) + created_count
                 tracker.last_synced_at = timezone.now()
                 tracker.last_sync_status = RemoteTableSync.SyncStatus.SUCCESS
                 tracker.last_error = ""
-                tracker.endpoint = self._build_endpoint(f"export/{table_name}/")
+                tracker.endpoint = self._resolve_tracker_endpoint(table_name)
                 tracker.save(
                     update_fields=[
                         "last_remote_id",
@@ -156,6 +186,8 @@ class RemoteTableSyncService:
     def _fetch_table_rows(self, table_name: str) -> list[dict]:
         if table_name in self.PAGINATED_API_TABLES:
             return self._fetch_paginated_api_rows(table_name)
+        if table_name in self.JSON_API_TABLES:
+            return self._fetch_json_api_rows(table_name)
 
         content = self._download_binary(f"export/{table_name}/")
         workbook = load_workbook(filename=BytesIO(content), read_only=True, data_only=True)
@@ -175,6 +207,20 @@ class RemoteTableSyncService:
                     continue
                 row[header] = self._normalize_value(values[index] if index < len(values) else None)
             results.append(row)
+        results.sort(key=lambda item: self._extract_remote_id(item) or 0)
+        return results
+
+    def _fetch_json_api_rows(self, table_name: str) -> list[dict]:
+        endpoint_path = self.JSON_API_TABLES[table_name]
+        payload = self._get_json(endpoint_path)
+        if not isinstance(payload, list):
+            raise RuntimeError(f"La respuesta JSON de '{table_name}' no es una lista.")
+
+        results = []
+        for row in payload:
+            if not isinstance(row, dict):
+                continue
+            results.append({key: self._normalize_value(value) for key, value in row.items()})
         results.sort(key=lambda item: self._extract_remote_id(item) or 0)
         return results
 
@@ -225,9 +271,16 @@ class RemoteTableSyncService:
     def _get_tracker(self, table_name: str) -> RemoteTableSync:
         tracker, _ = RemoteTableSync.objects.get_or_create(
             table_name=table_name,
-            defaults={"endpoint": self._build_endpoint(f"export/{table_name}/")},
+            defaults={"endpoint": self._resolve_tracker_endpoint(table_name)},
         )
         return tracker
+
+    def _resolve_tracker_endpoint(self, table_name: str) -> str:
+        if table_name in self.PAGINATED_API_TABLES:
+            return self._build_endpoint(self.PAGINATED_API_TABLES[table_name])
+        if table_name in self.JSON_API_TABLES:
+            return self._build_endpoint(self.JSON_API_TABLES[table_name])
+        return self._build_endpoint(f"export/{table_name}/")
 
     def _get_json(self, relative_path: str) -> dict:
         endpoint = self._build_endpoint(relative_path)

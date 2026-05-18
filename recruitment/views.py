@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views import View
@@ -16,12 +16,14 @@ from recruitment.models import (
     Application,
     Candidate,
     IntegrationCandidate,
+    IntegrationCandidateLLMRun,
     JobOpening,
     RemoteTableRecord,
 )
 from recruitment.services import (
     CandidateAIClassifier,
     IntegrationCandidateService,
+    IntegrationCandidateToLocalCandidateService,
     RemoteTableSyncService,
 )
 
@@ -75,7 +77,15 @@ class IntegrationCandidateListView(ListView):
         return page_size if page_size in {10, 25, 50, 100} else self.paginate_by
 
     def get_queryset(self):
-        queryset = IntegrationCandidate.objects.all()
+        local_candidate_subquery = Candidate.objects.filter(idIntegration=OuterRef("idIntegration"))
+        successful_run_subquery = IntegrationCandidateLLMRun.objects.filter(
+            candidate=OuterRef("pk"),
+            status=IntegrationCandidateLLMRun.Status.SUCCESS,
+        )
+        queryset = IntegrationCandidate.objects.annotate(
+            has_local_candidate=Exists(local_candidate_subquery),
+            is_processed=Exists(successful_run_subquery),
+        )
 
         q = self.request.GET.get("q", "").strip()
         primary_profile = self.request.GET.get("primary_profile", "").strip()
@@ -83,6 +93,9 @@ class IntegrationCandidateListView(ListView):
         seniority_level = self.request.GET.get("seniority_level", "").strip()
         country = self.request.GET.get("country", "").strip()
         province = self.request.GET.get("province", "").strip()
+        processed_status = self.request.GET.get("processed_status", "").strip()
+        has_cv_link = self.request.GET.get("has_cv_link", "").strip()
+        has_work_experience = self.request.GET.get("has_work_experience", "").strip()
         is_active = self.request.GET.get("is_active", "").strip()
         order = self.request.GET.get("order", "-last_integrated_at").strip()
 
@@ -108,6 +121,18 @@ class IntegrationCandidateListView(ListView):
             queryset = queryset.filter(country__icontains=country)
         if province:
             queryset = queryset.filter(province__icontains=province)
+        if processed_status == "true":
+            queryset = queryset.filter(is_processed=True)
+        elif processed_status == "false":
+            queryset = queryset.filter(is_processed=False)
+        if has_cv_link == "true":
+            queryset = queryset.exclude(cv_s3_url="")
+        elif has_cv_link == "false":
+            queryset = queryset.filter(cv_s3_url="")
+        if has_work_experience == "true":
+            queryset = queryset.exclude(work_experience_json=[])
+        elif has_work_experience == "false":
+            queryset = queryset.filter(work_experience_json=[])
         if is_active == "true":
             queryset = queryset.filter(is_active=True)
         elif is_active == "false":
@@ -128,6 +153,9 @@ class IntegrationCandidateListView(ListView):
                 "seniority_level": query_data.get("seniority_level", ""),
                 "country": query_data.get("country", ""),
                 "province": query_data.get("province", ""),
+                "processed_status": query_data.get("processed_status", ""),
+                "has_cv_link": query_data.get("has_cv_link", ""),
+                "has_work_experience": query_data.get("has_work_experience", ""),
                 "is_active": query_data.get("is_active", ""),
                 "order": query_data.get("order", "-last_integrated_at"),
                 "page_size": query_data.get("page_size", str(self.get_paginate_by(None))),
@@ -137,6 +165,7 @@ class IntegrationCandidateListView(ListView):
         context["current_order"] = self.request.GET.get("order", "-last_integrated_at")
         context["total_count"] = self.get_queryset().count()
         context["querystring_without_page"] = self._querystring_without("page")
+        context["current_full_path"] = self.request.get_full_path()
         context["order_links"] = {
             "full_name": self._querystring_with(order="full_name"),
             "idIntegration": self._querystring_with(order="-idIntegration"),
@@ -209,6 +238,72 @@ class RunCandidateClassificationView(View):
         return redirect("recruitment:candidate-detail", pk=candidate.pk)
 
 
+class ExtractIntegrationCandidateSkillsView(View):
+    def post(self, request, pk):
+        integration_candidate = get_object_or_404(IntegrationCandidate, pk=pk)
+        candidate, run = IntegrationCandidateToLocalCandidateService().extract_and_sync(
+            integration_candidate
+        )
+        if run.status == run.Status.SUCCESS and candidate:
+            messages.success(
+                request,
+                f"Extraccion completada y candidato local actualizado: {candidate.full_name}.",
+            )
+        else:
+            messages.error(
+                request,
+                f"La extraccion fallo: {run.error_message or 'error desconocido'}",
+            )
+        return redirect(request.POST.get("next") or "recruitment:integration-candidate-list")
+
+
+class BatchExtractIntegrationCandidateSkillsView(View):
+    def post(self, request):
+        selected_ids = request.POST.getlist("selected_candidates")
+        next_url = request.POST.get("next") or "recruitment:integration-candidate-list"
+        if not selected_ids:
+            messages.error(request, "Selecciona al menos un candidato integrado.")
+            return redirect(next_url)
+
+        integration_candidates = IntegrationCandidate.objects.filter(pk__in=selected_ids).order_by("pk")
+        service = IntegrationCandidateToLocalCandidateService()
+        success_count = 0
+        failure_count = 0
+        failed_items = []
+
+        for integration_candidate in integration_candidates:
+            try:
+                candidate, run = service.extract_and_sync(integration_candidate)
+            except Exception as exc:
+                failure_count += 1
+                failed_items.append(f"{integration_candidate.idIntegration}: {exc}")
+                continue
+
+            if run.status == run.Status.SUCCESS and candidate:
+                success_count += 1
+            else:
+                failure_count += 1
+                failed_items.append(
+                    f"{integration_candidate.idIntegration}: {run.error_message or 'error desconocido'}"
+                )
+
+        if success_count:
+            messages.success(
+                request,
+                f"Se procesaron correctamente {success_count} candidatos integrados.",
+            )
+        if failure_count:
+            details = "; ".join(failed_items[:3])
+            if failure_count > 3:
+                details = f"{details}; y {failure_count - 3} mas"
+            messages.error(
+                request,
+                f"Fallaron {failure_count} candidatos integrados. {details}",
+            )
+
+        return redirect(next_url)
+
+
 class RemoteSyncView(TemplateView):
     template_name = "recruitment/remote_sync.html"
     service_class = RemoteTableSyncService
@@ -277,11 +372,13 @@ class RemoteSyncView(TemplateView):
                 sync_results = service.sync_tables(tables_to_reset)
                 messages.success(request, "Se borraron todas las tablas copiadas y se volvieron a sincronizar.")
             elif action == "integrate_candidates":
+                sync_results.append(service.sync_table("cvfile"))
                 integration_result = integration_service.integrate_candidates(reset=False)
-                messages.success(request, "Se integraron los candidatos en la tabla unificada.")
+                messages.success(request, "Se sincronizo cvfile y se integraron los candidatos en la tabla unificada.")
             elif action == "reset_and_integrate_candidates":
+                sync_results.append(service.sync_table("cvfile", reset=True))
                 integration_result = integration_service.integrate_candidates(reset=True)
-                messages.success(request, "Se borraron y reintegraron los candidatos unificados.")
+                messages.success(request, "Se resincronizo cvfile y se borraron y reintegraron los candidatos unificados.")
             else:
                 messages.error(request, "La accion solicitada no es valida.")
         except Exception as exc:

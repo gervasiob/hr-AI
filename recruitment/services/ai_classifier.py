@@ -1,8 +1,11 @@
 import json
+import os
 from decimal import Decimal
+from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
+from dotenv import load_dotenv
 from openai import OpenAI
 
 from recruitment.models import (
@@ -33,16 +36,22 @@ No agregues texto extra. Responde solo JSON valido.
 class CandidateAIClassifier:
     def classify_candidate(self, candidate: Candidate) -> AIClassificationRun:
         payload = candidate.build_ai_payload()
+        api_key = self._get_openai_api_key()
+        model_name = self._get_openai_model()
         run = AIClassificationRun.objects.create(
             candidate=candidate,
             status=AIClassificationRun.Status.PENDING,
-            provider="openai" if settings.OPENAI_API_KEY else "heuristic",
-            model_name=settings.OPENAI_MODEL if settings.OPENAI_API_KEY else "heuristic-v1",
+            provider="openai" if api_key else "heuristic",
+            model_name=model_name if api_key else "heuristic-v1",
             request_payload=payload,
         )
 
         try:
-            result = self._call_model(payload) if self._can_use_openai() else self._heuristic(payload)
+            result = (
+                self._call_model(payload, api_key=api_key, model_name=model_name)
+                if self._can_use_openai()
+                else self._heuristic(payload)
+            )
             self._persist_result(candidate, run, result)
             run.status = AIClassificationRun.Status.SUCCESS
             run.raw_response = result
@@ -60,12 +69,12 @@ class CandidateAIClassifier:
         return run
 
     def _can_use_openai(self) -> bool:
-        return settings.AI_CLASSIFIER_ENABLED and bool(settings.OPENAI_API_KEY)
+        return settings.AI_CLASSIFIER_ENABLED and bool(self._get_openai_api_key())
 
-    def _call_model(self, payload: dict) -> dict:
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    def _call_model(self, payload: dict, api_key: str, model_name: str) -> dict:
+        client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=model_name,
             temperature=0.2,
             response_format={"type": "json_object"},
             messages=[
@@ -78,6 +87,24 @@ class CandidateAIClassifier:
         )
         content = response.choices[0].message.content or "{}"
         return json.loads(content)
+
+    def _reload_env_file(self):
+        base_dir = getattr(settings, "BASE_DIR", Path(__file__).resolve().parents[2])
+        load_dotenv(Path(base_dir) / ".env", override=True)
+
+    def _get_openai_api_key(self) -> str:
+        api_key = (getattr(settings, "OPENAI_API_KEY", "") or "").strip()
+        if api_key:
+            return api_key
+        self._reload_env_file()
+        return os.getenv("OPENAI_API_KEY", "").strip()
+
+    def _get_openai_model(self) -> str:
+        model_name = (getattr(settings, "OPENAI_MODEL", "") or "").strip()
+        if model_name:
+            return model_name
+        self._reload_env_file()
+        return os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip()
 
     def _heuristic(self, payload: dict) -> dict:
         text_parts = [

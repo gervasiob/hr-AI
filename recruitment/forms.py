@@ -58,6 +58,33 @@ class IntegrationCandidateFilterForm(forms.Form):
     seniority_level = forms.CharField(required=False, label="Senioridad")
     country = forms.CharField(required=False, label="Pais")
     province = forms.CharField(required=False, label="Provincia")
+    processed_status = forms.ChoiceField(
+        required=False,
+        label="Procesado",
+        choices=(
+            ("", "Todos"),
+            ("true", "Procesados"),
+            ("false", "No procesados"),
+        ),
+    )
+    has_cv_link = forms.ChoiceField(
+        required=False,
+        label="CV link",
+        choices=(
+            ("", "Todos"),
+            ("true", "Con CV"),
+            ("false", "Sin CV"),
+        ),
+    )
+    has_work_experience = forms.ChoiceField(
+        required=False,
+        label="Experiencia laboral",
+        choices=(
+            ("", "Todas"),
+            ("true", "Con experiencia"),
+            ("false", "Sin experiencia"),
+        ),
+    )
     is_active = forms.ChoiceField(
         required=False,
         label="Activo",
