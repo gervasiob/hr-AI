@@ -49,3 +49,41 @@ class RemoteTableSyncForm(forms.Form):
         super().__init__(*args, **kwargs)
         available_tables = available_tables or []
         self.fields["tables"].choices = [(table, table) for table in available_tables]
+
+
+class IntegrationCandidateFilterForm(forms.Form):
+    q = forms.CharField(required=False, label="Buscar")
+    primary_profile = forms.CharField(required=False, label="Perfil principal")
+    sub_profile = forms.CharField(required=False, label="Subperfil")
+    seniority_level = forms.CharField(required=False, label="Senioridad")
+    country = forms.CharField(required=False, label="Pais")
+    province = forms.CharField(required=False, label="Provincia")
+    is_active = forms.ChoiceField(
+        required=False,
+        label="Activo",
+        choices=(
+            ("", "Todos"),
+            ("true", "Solo activos"),
+            ("false", "Solo inactivos"),
+        ),
+    )
+    order = forms.ChoiceField(
+        required=False,
+        label="Ordenar por",
+        choices=(
+            ("-last_integrated_at", "Ultima integracion"),
+            ("full_name", "Nombre A-Z"),
+            ("-full_name", "Nombre Z-A"),
+            ("primary_profile", "Perfil principal"),
+            ("sub_profile", "Subperfil"),
+            ("country", "Pais"),
+            ("province", "Provincia"),
+            ("-idIntegration", "ID integracion desc"),
+            ("idIntegration", "ID integracion asc"),
+        ),
+    )
+    page_size = forms.ChoiceField(
+        required=False,
+        label="Por pagina",
+        choices=(("10", "10"), ("25", "25"), ("50", "50"), ("100", "100")),
+    )

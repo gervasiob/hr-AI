@@ -7,6 +7,11 @@ app_name = "recruitment"
 urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
     path("sincronizacion/", views.RemoteSyncView.as_view(), name="remote-sync"),
+    path(
+        "candidatos-integrados/",
+        views.IntegrationCandidateListView.as_view(),
+        name="integration-candidate-list",
+    ),
     path("candidatos/", views.CandidateListView.as_view(), name="candidate-list"),
     path("candidatos/nuevo/", views.CandidateCreateView.as_view(), name="candidate-create"),
     path("candidatos/<int:pk>/", views.CandidateDetailView.as_view(), name="candidate-detail"),

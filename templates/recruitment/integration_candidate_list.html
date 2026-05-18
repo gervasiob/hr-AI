@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Candidatos integrados{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Candidatos integrados</h2>
+    <p><strong>Total:</strong> {{ total_count }}</p>
+
+    <form method="get">
+        <div class="grid">
+            <div>
+                <label for="{{ filter_form.q.id_for_label }}">Buscar</label>
+                {{ filter_form.q }}
+            </div>
+            <div>
+                <label for="{{ filter_form.primary_profile.id_for_label }}">Perfil principal</label>
+                {{ filter_form.primary_profile }}
+            </div>
+            <div>
+                <label for="{{ filter_form.sub_profile.id_for_label }}">Subperfil</label>
+                {{ filter_form.sub_profile }}
+            </div>
+            <div>
+                <label for="{{ filter_form.seniority_level.id_for_label }}">Senioridad</label>
+                {{ filter_form.seniority_level }}
+            </div>
+            <div>
+                <label for="{{ filter_form.country.id_for_label }}">Pais</label>
+                {{ filter_form.country }}
+            </div>
+            <div>
+                <label for="{{ filter_form.province.id_for_label }}">Provincia</label>
+                {{ filter_form.province }}
+            </div>
+            <div>
+                <label for="{{ filter_form.is_active.id_for_label }}">Activo</label>
+                {{ filter_form.is_active }}
+            </div>
+            <div>
+                <label for="{{ filter_form.order.id_for_label }}">Orden</label>
+                {{ filter_form.order }}
+            </div>
+            <div>
+                <label for="{{ filter_form.page_size.id_for_label }}">Por pagina</label>
+                {{ filter_form.page_size }}
+            </div>
+        </div>
+
+        <div style="margin-top: 1rem;">
+            <button class="btn" type="submit">Filtrar</button>
+            <a class="btn btn-secondary" href="{% url 'recruitment:integration-candidate-list' %}">Limpiar</a>
+        </div>
+    </form>
+</div>
+
+<div class="card" style="margin-top: 1rem;">
+    <table>
+        <thead>
+            <tr>
+                <th><a href="{{ order_links.idIntegration }}">ID integracion</a></th>
+                <th><a href="{{ order_links.full_name }}">Nombre</a></th>
+                <th>Email</th>
+                <th><a href="{{ order_links.primary_profile }}">Perfil</a></th>
+                <th>Subperfil</th>
+                <th><a href="{{ order_links.country }}">Pais</a></th>
+                <th>Provincia</th>
+                <th>Skills</th>
+                <th><a href="{{ order_links.last_integrated_at }}">Ultima integracion</a></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for candidate in integration_candidates %}
+            <tr>
+                <td>{{ candidate.idIntegration }}</td>
+                <td>{{ candidate.full_name|default:"-" }}</td>
+                <td>{{ candidate.email|default:"-" }}</td>
+                <td>{{ candidate.primary_profile|default:"-" }}</td>
+                <td>{{ candidate.sub_profile|default:"-" }}</td>
+                <td>{{ candidate.country|default:"-" }}</td>
+                <td>{{ candidate.province|default:"-" }}</td>
+                <td>{{ candidate.skills_json|length }}</td>
+                <td>{{ candidate.last_integrated_at|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="9">No hay candidatos integrados para los filtros seleccionados.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if is_paginated %}
+    <div style="margin-top: 1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+        {% if page_obj.has_previous %}
+        <a class="btn btn-secondary" href="?page=1{{ querystring_without_page }}">Primera</a>
+        <a class="btn btn-secondary" href="?page={{ page_obj.previous_page_number }}{{ querystring_without_page }}">Anterior</a>
+        {% endif %}
+
+        <span>Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+        <a class="btn btn-secondary" href="?page={{ page_obj.next_page_number }}{{ querystring_without_page }}">Siguiente</a>
+        <a class="btn btn-secondary" href="?page={{ page_obj.paginator.num_pages }}{{ querystring_without_page }}">Ultima</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

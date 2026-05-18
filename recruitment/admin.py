@@ -8,6 +8,7 @@ from recruitment.models import (
     CandidateEducation,
     CandidateExperience,
     CandidateSkill,
+    IntegrationCandidate,
     JobOpening,
     JobSkillRequirement,
     Organization,
@@ -108,3 +109,27 @@ class RemoteTableRecordAdmin(admin.ModelAdmin):
     list_display = ("table", "remote_id", "created_at", "updated_at")
     list_filter = ("table__table_name",)
     search_fields = ("table__table_name",)
+
+
+@admin.register(IntegrationCandidate)
+class IntegrationCandidateAdmin(admin.ModelAdmin):
+    list_display = (
+        "idIntegration",
+        "full_name",
+        "email",
+        "primary_profile",
+        "sub_profile",
+        "seniority_level",
+        "last_integrated_at",
+    )
+    list_filter = ("source_system", "country", "province", "seniority_level", "is_active")
+    search_fields = (
+        "full_name",
+        "first_name",
+        "last_name",
+        "email",
+        "document_id",
+        "cuil",
+        "primary_profile",
+        "sub_profile",
+    )

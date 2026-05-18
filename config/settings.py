@@ -141,6 +141,7 @@ OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4.1-mini')
 AI_CLASSIFIER_ENABLED = os.getenv('AI_CLASSIFIER_ENABLED', 'True').lower() == 'true'
 REMOTE_API_BASE_URL = os.getenv('REMOTE_API_BASE_URL', 'https://hr.ngovatek.com/api/').strip().strip("'").strip('"')
 REMOTE_API_TIMEOUT = int(os.getenv('REMOTE_API_TIMEOUT', '60'))
+REMOTE_API_PAGE_SIZE = int(os.getenv('REMOTE_API_PAGE_SIZE', '5000'))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field

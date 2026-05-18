@@ -36,6 +36,11 @@
     .checkbox-item span {
         font-weight: 600;
     }
+    .checkbox-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin: 1rem 0;
+    }
     @keyframes sync-spin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
@@ -46,7 +51,8 @@
     <div class="sync-loading-card">
         <div class="sync-spinner"></div>
         <h3 style="margin: 0 0 0.5rem;">Sincronizando tablas</h3>
-        <p id="sync-loading-text" style="margin: 0;">Esperando respuesta del backend remoto...</p>
+        <p id="sync-loading-text" style="margin: 0;">Esperando respuesta del
+            backend remoto...</p>
     </div>
 </div>
 
@@ -55,10 +61,18 @@
     <p><strong>Base remota:</strong> {{ available_tables|length }} tablas
         detectadas</p>
     <p><strong>Registros locales copiados:</strong> {{ total_records }}</p>
+    <p><strong>Candidatos integrados:</strong> {{
+        integration_candidate_count|default:0 }}</p>
 
     <form method="post" id="remote-sync-form">
         {% csrf_token %}
         <h3>Selecciona tablas para copiar</h3>
+        <div class="checkbox-actions">
+            <button class="btn btn-secondary" type="button"
+                id="select-all-tables">Seleccionar todo</button>
+            <button class="btn btn-secondary" type="button"
+                id="clear-all-tables">Deseleccionar todo</button>
+        </div>
         <div class="checkbox-list">
             {% for checkbox in form.tables %}
             <label class="checkbox-item" for="{{ checkbox.id_for_label }}">
@@ -66,8 +80,8 @@
                 <span>{{ checkbox.data.label }}</span>
             </label>
             {% empty %}
+            <div class="checkbox-item">
                 <span>No hay tablas disponibles.</span>
-            </div>
             </div>
             {% endfor %}
         </div>
@@ -87,9 +101,43 @@
                 value="purge_all_and_sync">
                 Borrar todas las copiadas y recopiar
             </button>
+            <button class="btn btn-secondary" type="submit" name="action"
+                value="integrate_candidates">
+                Integrar en la tabla sincronizacion
+            </button>
+            <button class="btn btn-secondary" type="submit" name="action"
+                value="reset_and_integrate_candidates">
+                Reintegrar en la tabla sincronizacion
+            </button>
         </div>
     </form>
 </div>
+
+{% if integration_result %}
+<div class="card" style="margin-top: 1rem;">
+    <h3>Resultado de la integracion</h3>
+    <table>
+        <tbody>
+            <tr>
+                <th>Procesados</th>
+                <td>{{ integration_result.processed_count }}</td>
+            </tr>
+            <tr>
+                <th>Creados</th>
+                <td>{{ integration_result.created_count }}</td>
+            </tr>
+            <tr>
+                <th>Actualizados</th>
+                <td>{{ integration_result.updated_count }}</td>
+            </tr>
+            <tr>
+                <th>Total integrado</th>
+                <td>{{ integration_result.total_integrated }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endif %}
 
 {% if sync_results %}
 <div class="card" style="margin-top: 1rem;">
@@ -156,6 +204,8 @@
         const form = document.getElementById("remote-sync-form");
         const overlay = document.getElementById("sync-loading");
         const text = document.getElementById("sync-loading-text");
+        const selectAllButton = document.getElementById("select-all-tables");
+        const clearAllButton = document.getElementById("clear-all-tables");
         if (!form || !overlay || !text) {
             return;
         }
@@ -164,7 +214,9 @@
             sync: "Copiando nuevos registros desde el backend remoto...",
             reset_sync: "Borrando y recopiando las tablas seleccionadas...",
             purge: "Borrando las tablas seleccionadas...",
-            purge_all_and_sync: "Borrando todas las tablas copiadas y sincronizando nuevamente..."
+            purge_all_and_sync: "Borrando todas las tablas copiadas y sincronizando nuevamente...",
+            integrate_candidates: "Integrando candidates en una sola tabla...",
+            reset_and_integrate_candidates: "Borrando e integrando nuevamente los candidates..."
         };
 
         form.querySelectorAll('button[type="submit"]').forEach(function (button) {
@@ -172,6 +224,22 @@
                 form.dataset.pendingAction = button.value;
             });
         });
+
+        if (selectAllButton) {
+            selectAllButton.addEventListener("click", function () {
+                form.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+                    checkbox.checked = true;
+                });
+            });
+        }
+
+        if (clearAllButton) {
+            clearAllButton.addEventListener("click", function () {
+                form.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+                    checkbox.checked = false;
+                });
+            });
+        }
 
         form.addEventListener("submit", function () {
             const action = form.dataset.pendingAction || "sync";

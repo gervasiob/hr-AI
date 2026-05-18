@@ -454,3 +454,68 @@ class RemoteTableRecord(TimeStampedModel):
 
     def __str__(self):
         return f"{self.table.table_name} #{self.remote_id}"
+
+
+class IntegrationCandidate(TimeStampedModel):
+    idIntegration = models.PositiveBigIntegerField(unique=True, db_index=True)
+    source_system = models.CharField(max_length=100, default="ngovatek_hr")
+    formatted_cv_id = models.PositiveBigIntegerField(null=True, blank=True)
+
+    first_name = models.CharField(max_length=120, blank=True)
+    last_name = models.CharField(max_length=120, blank=True)
+    full_name = models.CharField(max_length=255, blank=True)
+    email = models.EmailField(blank=True)
+    alt_email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    document_id = models.CharField(max_length=50, blank=True)
+    cuil = models.CharField(max_length=50, blank=True)
+    gender = models.CharField(max_length=30, blank=True)
+    birth_date = models.DateField(null=True, blank=True)
+    age = models.PositiveIntegerField(null=True, blank=True)
+
+    address = models.CharField(max_length=255, blank=True)
+    zone = models.CharField(max_length=120, blank=True)
+    province = models.CharField(max_length=120, blank=True)
+    country = models.CharField(max_length=120, blank=True)
+
+    available_to_apply = models.BooleanField(default=True)
+    availability_days = models.PositiveIntegerField(null=True, blank=True)
+    is_blacklisted = models.BooleanField(default=False)
+    blacklist_reason = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    rejection_email_sent = models.BooleanField(default=False)
+
+    current_salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    expected_salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    health_insurance = models.CharField(max_length=255, blank=True)
+    bonuses = models.TextField(blank=True)
+    trainings = models.TextField(blank=True)
+    observations = models.TextField(blank=True)
+
+    current_job = models.CharField(max_length=255, blank=True)
+    primary_profile = models.CharField(max_length=255, blank=True)
+    sub_profile = models.CharField(max_length=255, blank=True)
+    seniority = models.CharField(max_length=255, blank=True)
+    seniority_level = models.CharField(max_length=255, blank=True)
+    experience_years = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+
+    summary = models.TextField(blank=True)
+    technical_skills_text = models.TextField(blank=True)
+    languages_text = models.TextField(blank=True)
+    profile_description = models.TextField(blank=True)
+
+    skills_json = models.JSONField(default=list, blank=True)
+    languages_json = models.JSONField(default=list, blank=True)
+    education_json = models.JSONField(default=list, blank=True)
+    work_experience_json = models.JSONField(default=list, blank=True)
+    certifications_json = models.JSONField(default=list, blank=True)
+    integrated_payload = models.JSONField(default=dict, blank=True)
+
+    last_integrated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["last_name", "first_name", "idIntegration"]
+        db_table = "integrationCandidates"
+
+    def __str__(self):
+        return self.full_name or f"IntegrationCandidate #{self.idIntegration}"

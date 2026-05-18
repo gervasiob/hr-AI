@@ -1,2 +1,3 @@
 from .ai_classifier import CandidateAIClassifier
+from .candidate_integration import IntegrationCandidateService
 from .remote_sync import RemoteTableSyncService

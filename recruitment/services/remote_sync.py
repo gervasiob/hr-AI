@@ -15,6 +15,10 @@ from recruitment.models import RemoteTableRecord, RemoteTableSync
 
 
 class RemoteTableSyncService:
+    PAGINATED_API_TABLES = {
+        "candidate": "candidates/",
+    }
+
     def list_available_tables(self) -> list[str]:
         payload = self._get_json("tables/")
         tables = payload.get("tables", [])
@@ -150,6 +154,9 @@ class RemoteTableSyncService:
         }
 
     def _fetch_table_rows(self, table_name: str) -> list[dict]:
+        if table_name in self.PAGINATED_API_TABLES:
+            return self._fetch_paginated_api_rows(table_name)
+
         content = self._download_binary(f"export/{table_name}/")
         workbook = load_workbook(filename=BytesIO(content), read_only=True, data_only=True)
         sheet = workbook.active
@@ -168,6 +175,23 @@ class RemoteTableSyncService:
                     continue
                 row[header] = self._normalize_value(values[index] if index < len(values) else None)
             results.append(row)
+        results.sort(key=lambda item: self._extract_remote_id(item) or 0)
+        return results
+
+    def _fetch_paginated_api_rows(self, table_name: str) -> list[dict]:
+        endpoint_path = self.PAGINATED_API_TABLES[table_name]
+        next_url = self._build_endpoint(
+            f"{endpoint_path}?page=1&page_size={settings.REMOTE_API_PAGE_SIZE}&ordering=id"
+        )
+        results = []
+
+        while next_url:
+            payload = self._get_json_from_url(next_url)
+            page_results = payload.get("results", [])
+            for row in page_results:
+                results.append({key: self._normalize_value(value) for key, value in row.items()})
+            next_url = payload.get("next")
+
         results.sort(key=lambda item: self._extract_remote_id(item) or 0)
         return results
 
@@ -207,6 +231,9 @@ class RemoteTableSyncService:
 
     def _get_json(self, relative_path: str) -> dict:
         endpoint = self._build_endpoint(relative_path)
+        return self._get_json_from_url(endpoint)
+
+    def _get_json_from_url(self, endpoint: str) -> dict:
         request = Request(endpoint, headers={"Accept": "application/json"})
         try:
             with urlopen(request, timeout=settings.REMOTE_API_TIMEOUT) as response:
