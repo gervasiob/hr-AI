@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Sincronizacion remota{% endblock %}
+
+{% block content %}
+<style>
+    .sync-loading {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(17, 24, 39, 0.55);
+        z-index: 9999;
+    }
+    .sync-loading.is-active {
+        display: flex;
+    }
+    .sync-loading-card {
+        background: #fff;
+        border-radius: 10px;
+        padding: 1.5rem 2rem;
+        min-width: 280px;
+        text-align: center;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    }
+    .sync-spinner {
+        width: 36px;
+        height: 36px;
+        margin: 0 auto 1rem;
+        border: 4px solid #dbeafe;
+        border-top-color: #2563eb;
+        border-radius: 50%;
+        animation: sync-spin 1s linear infinite;
+    }
+    .checkbox-item span {
+        font-weight: 600;
+    }
+    @keyframes sync-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+<div id="sync-loading" class="sync-loading" aria-hidden="true">
+    <div class="sync-loading-card">
+        <div class="sync-spinner"></div>
+        <h3 style="margin: 0 0 0.5rem;">Sincronizando tablas</h3>
+        <p id="sync-loading-text" style="margin: 0;">Esperando respuesta del backend remoto...</p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Sincronizacion de tablas remotas</h2>
+    <p><strong>Base remota:</strong> {{ available_tables|length }} tablas
+        detectadas</p>
+    <p><strong>Registros locales copiados:</strong> {{ total_records }}</p>
+
+    <form method="post" id="remote-sync-form">
+        {% csrf_token %}
+        <h3>Selecciona tablas para copiar</h3>
+        <div class="checkbox-list">
+            {% for checkbox in form.tables %}
+            <label class="checkbox-item" for="{{ checkbox.id_for_label }}">
+                {{ checkbox.tag }}
+                <span>{{ checkbox.data.label }}</span>
+            </label>
+            {% empty %}
+                <span>No hay tablas disponibles.</span>
+            </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div style="margin-top: 1rem;">
+            <button class="btn" type="submit" name="action" value="sync">Copiar
+                nuevos registros</button>
+            <button class="btn btn-secondary" type="submit" name="action"
+                value="reset_sync">
+                Borrar seleccionadas y recopiar
+            </button>
+            <button class="btn btn-secondary" type="submit" name="action"
+                value="purge">
+                Borrar seleccionadas
+            </button>
+            <button class="btn btn-secondary" type="submit" name="action"
+                value="purge_all_and_sync">
+                Borrar todas las copiadas y recopiar
+            </button>
+        </div>
+    </form>
+</div>
+
+{% if sync_results %}
+<div class="card" style="margin-top: 1rem;">
+    <h3>Resultado de la ultima ejecucion</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Tabla</th>
+                <th>Nuevos</th>
+                <th>Actualizados</th>
+                <th>Total local</th>
+                <th>Ultimo ID remoto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in sync_results %}
+            <tr>
+                <td>{{ result.table_name }}</td>
+                <td>{{ result.created_count }}</td>
+                <td>{{ result.updated_count }}</td>
+                <td>{{ result.records_count }}</td>
+                <td>{{ result.last_remote_id }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top: 1rem;">
+    <h3>Estado de tablas sincronizadas</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Tabla</th>
+                <th>Seleccionada</th>
+                <th>Total local</th>
+                <th>Ultimo ID</th>
+                <th>Ultima sincronizacion</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tracker in trackers %}
+            <tr>
+                <td>{{ tracker.table_name }}</td>
+                <td>{% if tracker.is_selected %}Si{% else %}No{% endif %}</td>
+                <td>{{ tracker.records_count }}</td>
+                <td>{{ tracker.last_remote_id }}</td>
+                <td>{{ tracker.last_synced_at|default:"-" }}</td>
+                <td>{{ tracker.get_last_sync_status_display }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6">Todavia no hay tablas sincronizadas.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    (function () {
+        const form = document.getElementById("remote-sync-form");
+        const overlay = document.getElementById("sync-loading");
+        const text = document.getElementById("sync-loading-text");
+        if (!form || !overlay || !text) {
+            return;
+        }
+
+        const actionMessages = {
+            sync: "Copiando nuevos registros desde el backend remoto...",
+            reset_sync: "Borrando y recopiando las tablas seleccionadas...",
+            purge: "Borrando las tablas seleccionadas...",
+            purge_all_and_sync: "Borrando todas las tablas copiadas y sincronizando nuevamente..."
+        };
+
+        form.querySelectorAll('button[type="submit"]').forEach(function (button) {
+            button.addEventListener("click", function () {
+                form.dataset.pendingAction = button.value;
+            });
+        });
+
+        form.addEventListener("submit", function () {
+            const action = form.dataset.pendingAction || "sync";
+            text.textContent = actionMessages[action] || "Procesando solicitud...";
+            overlay.classList.add("is-active");
+            overlay.setAttribute("aria-hidden", "false");
+        });
+    })();
+</script>
+{% endblock %}

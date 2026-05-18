@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ candidate.full_name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>{{ candidate.full_name }}</h2>
+    <p><strong>Email:</strong> {{ candidate.email }}</p>
+    <p><strong>Ubicacion:</strong> {{ candidate.location|default:"-" }}</p>
+    <p><strong>Puesto actual:</strong> {{ candidate.current_position|default:"-" }}</p>
+    <p><strong>Resumen:</strong> {{ candidate.summary|default:"Sin resumen." }}</p>
+
+    <form method="post" action="{% url 'recruitment:candidate-classify' candidate.pk %}">
+        {% csrf_token %}
+        <button class="btn" type="submit">Clasificar skills con IA</button>
+    </form>
+</div>
+
+<section class="grid" style="margin-top: 1rem;">
+    <div class="card">
+        <h3>Skills registradas</h3>
+        {% for item in skills %}
+            <span class="badge">{{ item.skill.name }} | {{ item.skill.get_category_display }}</span>
+        {% empty %}
+            <p>No hay skills guardadas.</p>
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        <h3>Extraccion IA</h3>
+        {% if latest_run %}
+            <p><strong>Ultima ejecucion:</strong> {{ latest_run.executed_at|default:"pendiente" }}</p>
+            <p><strong>Estado:</strong> {{ latest_run.get_status_display }}</p>
+        {% endif %}
+        {% for item in extracted_skills %}
+            <p>
+                <span class="badge">{{ item.skill_name }}</span>
+                {{ item.get_category_display }} | confianza {{ item.confidence }}
+            </p>
+            <p>{{ item.evidence_text }}</p>
+        {% empty %}
+            <p>No hay resultados IA para este candidato.</p>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="grid" style="margin-top: 1rem;">
+    <div class="card">
+        <h3>Experiencia</h3>
+        {% for exp in experiences %}
+            <p><strong>{{ exp.position }}</strong> en {{ exp.company }}</p>
+            <p>{{ exp.achievements|default:"-" }}</p>
+        {% empty %}
+            <p>Sin experiencia cargada.</p>
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        <h3>Educacion</h3>
+        {% for edu in educations %}
+            <p><strong>{{ edu.degree }}</strong> - {{ edu.institution }}</p>
+            <p>{{ edu.field_of_study|default:"-" }}</p>
+        {% empty %}
+            <p>Sin educacion cargada.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

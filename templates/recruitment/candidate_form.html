@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Nuevo candidato{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Alta de candidato</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn" type="submit">Guardar candidato</button>
+    </form>
+</div>
+{% endblock %}

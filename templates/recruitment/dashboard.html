@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<section class="grid">
+    <div class="card">
+        <h2>Candidatos</h2>
+        <p>{{ candidate_count }}</p>
+    </div>
+    <div class="card">
+        <h2>Vacantes</h2>
+        <p>{{ job_count }}</p>
+    </div>
+    <div class="card">
+        <h2>Postulaciones</h2>
+        <p>{{ application_count }}</p>
+    </div>
+    <div class="card">
+        <h2>Registros copiados</h2>
+        <p>{{ remote_records_count }}</p>
+    </div>
+</section>
+
+<section class="grid" style="margin-top: 1rem;">
+    <div class="card">
+        <h2>Clasificaciones recientes</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Candidato</th>
+                    <th>Estado</th>
+                    <th>Modelo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent_runs %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'recruitment:candidate-detail' run.candidate.pk %}">
+                                {{ run.candidate.full_name }}
+                            </a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.model_name }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="3">Todavia no hay clasificaciones IA.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>Postulaciones por etapa</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Etapa</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in applications_by_stage %}
+                    <tr>
+                        <td>{{ item.stage }}</td>
+                        <td>{{ item.total }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="2">Sin postulaciones cargadas.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

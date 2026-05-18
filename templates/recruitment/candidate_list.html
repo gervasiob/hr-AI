@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Candidatos{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Listado de candidatos</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Ubicacion</th>
+                <th>Puesto actual</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for candidate in candidates %}
+                <tr>
+                    <td>
+                        <a href="{% url 'recruitment:candidate-detail' candidate.pk %}">
+                            {{ candidate.full_name }}
+                        </a>
+                    </td>
+                    <td>{{ candidate.email }}</td>
+                    <td>{{ candidate.location|default:"-" }}</td>
+                    <td>{{ candidate.current_position|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4">No hay candidatos cargados.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

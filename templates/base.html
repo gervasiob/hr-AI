@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{% block title %}HRAI{% endblock %}</title>
+        <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #f5f7fb; color: #1f2937; }
+        header { background: #111827; color: #fff; padding: 1rem 2rem; }
+        nav a { color: #fff; margin-right: 1rem; text-decoration: none; }
+        main { padding: 2rem; max-width: 1100px; margin: 0 auto; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+        .card { background: #fff; border-radius: 8px; padding: 1.2rem; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
+        .btn { display: inline-block; background: #2563eb; color: #fff; padding: 0.7rem 1rem; border-radius: 6px; text-decoration: none; border: 0; cursor: pointer; }
+        .btn-secondary { background: #4b5563; }
+        .badge { display: inline-block; background: #e5e7eb; border-radius: 999px; padding: 0.2rem 0.6rem; margin: 0.1rem 0.2rem 0.1rem 0; }
+        .messages { margin-bottom: 1rem; }
+        .message { background: #dbeafe; padding: 0.8rem; border-radius: 6px; margin-bottom: 0.5rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 0.7rem; border-bottom: 1px solid #e5e7eb; }
+        form p { margin-bottom: 1rem; }
+        input, textarea, select { width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; }
+        .checkbox-list { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-top: 1rem; }
+        .checkbox-item { display: flex; align-items: center; justify-content: flex-start; gap: 0.75rem; padding: 0.9rem 1rem; border-bottom: 1px solid #e5e7eb; }
+        .checkbox-item:last-child { border-bottom: 0; }
+        .checkbox-item label { width: auto; margin: 0; font-weight: 600; order: 2; }
+        .checkbox-item input[type="checkbox"] { width: 18px; height: 18px; margin: 0; flex: 0 0 auto; }
+    </style>
+    </head>
+    <body>
+        <header>
+            <h1>HRAI Recruiting</h1>
+            <nav>
+                <a href="{% url 'recruitment:dashboard' %}">Dashboard</a>
+                <a href="{% url 'recruitment:remote-sync' %}">Sincronizacion</a>
+                <a href="{% url 'recruitment:candidate-list' %}">Candidatos</a>
+                <a href="{% url 'recruitment:candidate-create' %}">Nuevo
+                    candidato</a>
+                <a href="{% url 'recruitment:application-create' %}">Nueva
+                    postulacion</a>
+                <a href="/admin/">Admin</a>
+            </nav>
+        </header>
+        <main>
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="message">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </main>
+    </body>
+</html>
